@@ -3,27 +3,24 @@ import express from "express";
 import morgan from "morgan";
 import cors from "cors";
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
 import { ObjectId } from "mongodb";
 import { getDb, getClient } from "./db.js";  // <-- import getClient
 
 dotenv.config();
 const app = express();
+
 const PORT = process.env.PORT || 8080;
+const ORIGIN = process.env.ALLOW_ORIGIN || "http://127.0.0.1:5500";
 
 app.use(morgan("dev"));
 app.use(express.json());
+app.use(cors({ origin: ORIGIN, methods: ["GET","POST","PUT","OPTIONS"] }));
 
-// CORS: allow your front-end origin (Live Server is usually 127.0.0.1:5500)
-const ORIGIN = process.env.ALLOW_ORIGIN || 'http://127.0.0.1:5500';
-app.use(cors({ origin: ORIGIN, methods: ['GET','POST','PUT','OPTIONS'] }));
-
-// Friendly root so visiting / shows a message
-app.get('/', (_req, res) => {
-  res.type('text').send('CST3144 API ✓  Try: GET /health, GET /lessons');
-});
-
-// Health
-app.get("/health", (req, res) => res.json({ ok: true }));
+// root + health
+app.get("/", (_req, res) => res.type("text").send("CST3144 API ✓  Try: GET /health, GET /lessons"));
+app.get("/health", (_req, res) => res.json({ ok: true }));
 
 app.get('/search', async (req,res) => {
   req.query.search = req.query.q || req.query.search || '';
@@ -66,20 +63,33 @@ app.get("/lessons", async (req, res) => {
 app.put("/lessons/:id", async (req, res) => {
   const db = await getDb();
   const { id } = req.params;
-  const { spaces } = req.body;
 
   if (!ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
-  if (typeof spaces !== "number" || spaces < 0) return res.status(400).json({ error: "spaces must be >= 0" });
+
+  // whitelist allowed fields
+  const allowed = ["subject", "location", "price", "spaces", "image"];
+  const updates = {};
+  for (const k of allowed) {
+    if (k in req.body) updates[k] = req.body[k];
+  }
+  if (Object.keys(updates).length === 0) {
+    return res.status(400).json({ error: "No valid fields to update" });
+  }
+  // optional guard for spaces being non-negative
+  if ("spaces" in updates && (typeof updates.spaces !== "number" || updates.spaces < 0)) {
+    return res.status(400).json({ error: "spaces must be a number >= 0" });
+  }
 
   const result = await db.collection("lessons").updateOne(
     { _id: new ObjectId(id) },
-    { $set: { spaces } }
+    { $set: updates }
   );
 
   if (!result.matchedCount) return res.status(404).json({ error: "Lesson not found" });
   res.json({ ok: true });
 });
 
+// GET /images/:name
 app.get('/images/:name', (req,res)=>{
   const p = path.join(process.cwd(),'public','images', req.params.name);
   if (fs.existsSync(p)) return res.sendFile(p);
