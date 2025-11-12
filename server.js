@@ -142,6 +142,32 @@ app.post("/orders", async (req, res) => {
   }
 });
 
+// DELETE /orders/:id  → delete a single order by ID
+app.delete("/orders/:id", async (req, res) => {
+  const db = await getDb();
+  const { id } = req.params;
+
+  if (!ObjectId.isValid(id)) {
+    return res.status(400).json({ error: "Invalid order ID" });
+  }
+
+  const result = await db.collection("orders").deleteOne({ _id: new ObjectId(id) });
+
+  if (!result.deletedCount) {
+    return res.status(404).json({ error: "Order not found" });
+  }
+
+  res.json({ ok: true, message: "Order deleted successfully" });
+});
+
+// DELETE /orders (no ID) → clear all orders (admin/test)
+app.delete("/orders", async (_req, res) => {
+  const db = await getDb();
+  const result = await db.collection("orders").deleteMany({});
+  res.json({ ok: true, deleted: result.deletedCount });
+});
+
+
 // (dev) peek recent orders
 app.get("/orders/debug", async (_req, res) => {
   const db = await getDb();
