@@ -22,11 +22,6 @@ app.use(cors({ origin: ORIGIN, methods: ["GET","POST","PUT","OPTIONS"] }));
 app.get("/", (_req, res) => res.type("text").send("CST3144 API ✓  Try: GET /health, GET /lessons"));
 app.get("/health", (_req, res) => res.json({ ok: true }));
 
-app.get('/search', async (req,res) => {
-  req.query.search = req.query.q || req.query.search || '';
-  return app._router.handle({ ...req, url: '/lessons' }, res, ()=>{});
-});
-
 // GET /lessons
 app.get("/lessons", async (req, res) => {
   const db = await getDb();
@@ -87,6 +82,38 @@ app.put("/lessons/:id", async (req, res) => {
 
   if (!result.matchedCount) return res.status(404).json({ error: "Lesson not found" });
   res.json({ ok: true });
+});
+
+// GET /search  → perform the search in the BACKEND (required by rubric)
+app.get("/search", async (req, res) => {
+  const db = await getDb();
+  const { q = "", sort = "subject", dir = "asc" } = req.query;
+
+  const term = String(q || "").trim().toLowerCase();
+  const filter = term
+    ? {
+        $or: [
+          { subject:  { $regex: term, $options: "i" } },
+          { location: { $regex: term, $options: "i" } },
+        ]
+      }
+    : {};
+
+  // if numeric-like, also match price/spaces
+  if (term && !isNaN(Number(term))) {
+    const num = Number(term);
+    (filter.$or || (filter.$or = [])).push({ price: num }, { spaces: num });
+  }
+
+  const sortKey = ["subject","location","price","spaces"].includes(sort) ? sort : "subject";
+  const sortDir = dir === "desc" ? -1 : 1;
+
+  const results = await db.collection("lessons")
+    .find(filter)
+    .sort({ [sortKey]: sortDir })
+    .toArray();
+
+  res.json(results);
 });
 
 // GET /images/:name
