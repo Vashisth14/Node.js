@@ -21,7 +21,7 @@ app.use(morgan("dev"));
 app.use(express.json());
 
 // CORS – allows the frontend (index.html) to talk to the backend
-app.use(cors());
+app.use(cors({ origin: ORIGIN, methods: ["GET","POST","PUT","DELETE","OPTIONS"] }));
 
 // root + health
 app.get("/", (_req, res) => 
@@ -105,31 +105,34 @@ app.put("/lessons/:id", async (req, res) => {
 // GET /search – Backend search-as-you-type
 // Front-end sends GET /search?q=typing...
 // Backend returns MongoDB-filtered results.
+// GET /search – Backend search-as-you-type
 app.get("/search", async (req, res) => {
   const db = await getDb();
-   
+
+  // FIXED: extract query params
+  const { q = "", sort = "subject", dir = "asc" } = req.query;
 
   const term = String(q || "").trim().toLowerCase();
 
-  // Build query filter
+  // Build MongoDB filter
   const filter = term
     ? {
         $or: [
           { subject:  { $regex: term, $options: "i" } },
-          { location: { $regex: term, $options: "i" } },
+          { location: { $regex: term, $options: "i" } }
         ]
       }
     : {};
 
-  // if numeric-like, also match price/spaces
+  // Numeric search support
   if (term && !isNaN(Number(term))) {
     const num = Number(term);
     (filter.$or || (filter.$or = [])).push({ price: num }, { spaces: num });
   }
 
   // Sorting
-  const sortKey = ["subject","location","price","spaces"].includes(sort) 
-    ? sort 
+  const sortKey = ["subject","location","price","spaces"].includes(sort)
+    ? sort
     : "subject";
   const sortDir = dir === "desc" ? -1 : 1;
 
@@ -140,6 +143,7 @@ app.get("/search", async (req, res) => {
 
   res.json(results);
 });
+
 
 // STATIC IMAGE MIDDLEWARE 
 // GET /images/:name
