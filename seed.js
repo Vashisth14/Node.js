@@ -1,4 +1,13 @@
 // seed.js
+
+// PURPOSE:
+//    Clears (resets) the MongoDB collections for lessons and orders
+//    Inserts a clean set of 10 lesson documents
+//    Used during development and testing to restore the database state
+
+// HOW TO RUN:
+//   node seed.js
+
 import { getDb } from "./db.js";
 
 const LESSONS = [
@@ -15,10 +24,19 @@ const LESSONS = [
 ];
 
 (async () => {
-  const db = await getDb();
+  const db = await getDb(); // connect to MongoDB database
+
+  // Removes all previous order documents so the database resets cleanly.
   await db.collection("orders").deleteMany({});
+
+  // Ensures no duplicate or outdated lessons remain in the collection.
   await db.collection("lessons").deleteMany({});
+
+  // Insert many documents at once, returning the MongoDB inserted IDs.
   const { insertedIds } = await db.collection("lessons").insertMany(LESSONS);
+
   console.log("Seeded lessons:", insertedIds);
+
+   // Exit the process safely
   process.exit(0);
 })();
