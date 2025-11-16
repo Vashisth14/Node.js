@@ -1,12 +1,12 @@
 // server.js
 import express from "express";
-import morgan from "morgan";
+import morgan from "morgan";    // logger middleware
 import cors from "cors";
 import dotenv from "dotenv";
 import fs from "fs";
 import path from "path";
 import { ObjectId } from "mongodb";
-import { getDb, getClient } from "./db.js";  // <-- import getClient
+import { getDb, getClient } from "./db.js";  // database + transaction client
 
 dotenv.config();
 const app = express();
@@ -14,13 +14,24 @@ const app = express();
 const PORT = process.env.PORT || 8080;
 const ORIGIN = process.env.ALLOW_ORIGIN || "http://127.0.0.1:5500";
 
+// MIDDLEWARE
+// Logger middleware – logs every request (method, URL, status, response time)
 app.use(morgan("dev"));
+
+// JSON body parser + CORS
 app.use(express.json());
+
+// CORS – allows the frontend (index.html) to talk to the backend
 app.use(cors({ origin: ORIGIN, methods: ["GET","POST","PUT","OPTIONS"] }));
 
 // root + health
-app.get("/", (_req, res) => res.type("text").send("CST3144 API ✓  Try: GET /health, GET /lessons"));
-app.get("/health", (_req, res) => res.json({ ok: true }));
+app.get("/", (_req, res) => 
+  res.type("text").send("CST3144 API ✓  Try: GET /health, GET /lessons")
+);
+
+app.get("/health", (_req, res) => 
+  res.json({ ok: true })
+);
 
 // GET /lessons
 app.get("/lessons", async (req, res) => {
@@ -28,6 +39,8 @@ app.get("/lessons", async (req, res) => {
   const { search = "", sort = "subject", dir = "asc" } = req.query;
 
   const q = String(search || "").trim().toLowerCase();
+
+  // Build MongoDB query filter
   const filter = q
     ? {
         $or: [
@@ -43,9 +56,13 @@ app.get("/lessons", async (req, res) => {
     (filter.$or || (filter.$or = [])).push({ price: num }, { spaces: num });
   }
 
-  const sortKey = ["subject","location","price","spaces"].includes(sort) ? sort : "subject";
+   // Sorting key + direction
+  const sortKey = ["subject","location","price","spaces"].includes(sort) 
+  ? sort
+  : "subject";
   const sortDir = dir === "desc" ? -1 : 1;
 
+  // Execute query
   const lessons = await db.collection("lessons")
     .find(filter)
     .sort({ [sortKey]: sortDir })
@@ -54,23 +71,25 @@ app.get("/lessons", async (req, res) => {
   res.json(lessons);
 });
 
-// PUT /lessons/:id
+// PUT /lessons/:id – Update ANY lesson field
 app.put("/lessons/:id", async (req, res) => {
   const db = await getDb();
   const { id } = req.params;
 
   if (!ObjectId.isValid(id)) return res.status(400).json({ error: "Invalid id" });
 
-  // whitelist allowed fields
+  // Only allow updating safe fields
   const allowed = ["subject", "location", "price", "spaces", "image"];
   const updates = {};
   for (const k of allowed) {
     if (k in req.body) updates[k] = req.body[k];
   }
+
   if (Object.keys(updates).length === 0) {
     return res.status(400).json({ error: "No valid fields to update" });
   }
-  // optional guard for spaces being non-negative
+
+  // Spaces must remain non-negative
   if ("spaces" in updates && (typeof updates.spaces !== "number" || updates.spaces < 0)) {
     return res.status(400).json({ error: "spaces must be a number >= 0" });
   }
@@ -84,12 +103,16 @@ app.put("/lessons/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
-// GET /search  → perform the search in the BACKEND (required by rubric)
+// GET /search – Backend search-as-you-type
+// Front-end sends GET /search?q=typing...
+// Backend returns MongoDB-filtered results.
 app.get("/search", async (req, res) => {
   const db = await getDb();
-  const { q = "", sort = "subject", dir = "asc" } = req.query;
+   
 
   const term = String(q || "").trim().toLowerCase();
+
+  // Build query filter
   const filter = term
     ? {
         $or: [
@@ -105,7 +128,10 @@ app.get("/search", async (req, res) => {
     (filter.$or || (filter.$or = [])).push({ price: num }, { spaces: num });
   }
 
-  const sortKey = ["subject","location","price","spaces"].includes(sort) ? sort : "subject";
+  // Sorting
+  const sortKey = ["subject","location","price","spaces"].includes(sort) 
+    ? sort 
+    : "subject";
   const sortDir = dir === "desc" ? -1 : 1;
 
   const results = await db.collection("lessons")
@@ -116,19 +142,24 @@ app.get("/search", async (req, res) => {
   res.json(results);
 });
 
+// STATIC IMAGE MIDDLEWARE 
 // GET /images/:name
+// If an image exists → return file
+// If NOT → return JSON 404 error
 app.get('/images/:name', (req,res)=>{
   const p = path.join(process.cwd(),'public','images', req.params.name);
   if (fs.existsSync(p)) return res.sendFile(p);
   res.status(404).json({ error: 'Image not found' });
 });
 
-// POST /orders
+// POST /orders – Create an order
 app.post("/orders", async (req, res) => {
   const db = await getDb();
   const client = await getClient();                 // <-- get client here
+
   const { name, phone, items } = req.body || {};
 
+  // Validate request body
   if (!name || !phone || !Array.isArray(items) || items.length === 0) {
     return res.status(400).json({ error: "Invalid payload" });
   }
@@ -138,72 +169,67 @@ app.post("/orders", async (req, res) => {
     }
   }
 
-  const session = client.startSession();            // <-- clean session start
+  // Start transaction
+  const session = client.startSession();
   try {
     await session.withTransaction(async () => {
+      // For each lesson, ensure enough spaces exist, then deduct
       for (const it of items) {
         const filter = { _id: new ObjectId(it.lessonId), spaces: { $gte: it.qty } };
         const update = { $inc: { spaces: -it.qty } };
         const updRes = await db.collection("lessons").updateOne(filter, update, { session });
+
         if (!updRes.matchedCount) {
           throw new Error("NOT_ENOUGH_SPACES");
         }
       }
-      await db.collection("orders").insertOne({
-        name,
-        phone,
-        items: items.map(i => ({ lessonId: new ObjectId(i.lessonId), qty: i.qty })),
-        createdAt: new Date()
-      }, { session });
+
+       // Save order record
+      await db.collection("orders").insertOne(
+        {
+          name,
+          phone,
+          items: items.map(i => ({ 
+            lessonId: new ObjectId(i.lessonId), 
+            qty: i.qty 
+          })),
+          createdAt: new Date()
+        }, 
+        { session }
+      );
     });
 
     res.status(201).json({ ok: true });
+
   } catch (err) {
     if (err.message === "NOT_ENOUGH_SPACES") {
       return res.status(409).json({ error: "Not enough spaces for one or more lessons" });
     }
+
     console.error(err);
     res.status(500).json({ error: "Order failed" });
+
   } finally {
     await session.endSession();
   }
 });
 
-// DELETE /orders/:id  → delete a single order by ID
-app.delete("/orders/:id", async (req, res) => {
-  const db = await getDb();
-  const { id } = req.params;
-
-  if (!ObjectId.isValid(id)) {
-    return res.status(400).json({ error: "Invalid order ID" });
-  }
-
-  const result = await db.collection("orders").deleteOne({ _id: new ObjectId(id) });
-
-  if (!result.deletedCount) {
-    return res.status(404).json({ error: "Order not found" });
-  }
-
-  res.json({ ok: true, message: "Order deleted successfully" });
-});
-
-// DELETE /orders (no ID) → clear all orders (admin/test)
-app.delete("/orders", async (_req, res) => {
-  const db = await getDb();
-  const result = await db.collection("orders").deleteMany({});
-  res.json({ ok: true, deleted: result.deletedCount });
-});
-
-
-// (dev) peek recent orders
+// Debug route – view most recent 5 orders
 app.get("/orders/debug", async (_req, res) => {
   const db = await getDb();
-  const orders = await db.collection("orders").find().sort({ createdAt: -1 }).limit(5).toArray();
+  const orders = await db.collection("orders")
+  .find()
+  .sort({ createdAt: -1 })
+  .limit(5)
+  .toArray();
+
   res.json(orders);
 });
 
+// Also serve /public as /static (not required by rubric, but useful)
 app.use("/static", express.static("public"));
 
+// START SERVER
 app.listen(PORT, () => {
   console.log(`API running on http://localhost:${PORT}`);
 });
