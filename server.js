@@ -12,6 +12,7 @@ dotenv.config();
 const app = express();
 
 const PORT = process.env.PORT || 8080;
+const ORIGIN =  "https://node-js-d2bi.onrender.com";
 
 // MIDDLEWARE
 // Logger middleware – logs every request (method, URL, status, response time)
@@ -21,7 +22,7 @@ app.use(morgan("dev"));
 app.use(express.json());
 
 // CORS – allows the frontend (index.html) to talk to the backend
-app.use(cors());
+app.use(cors({ origin: ORIGIN, methods: ["GET","POST","PUT","OPTIONS"] }));
 
 // root + health
 app.get("/", (_req, res) => 
