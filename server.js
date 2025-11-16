@@ -21,7 +21,7 @@ app.use(morgan("dev"));
 app.use(express.json());
 
 // CORS – allows the frontend (index.html) to talk to the backend
-app.use(cors({ origin: ORIGIN, methods: ["GET","POST","PUT","DELETE","OPTIONS"] }));
+app.use(cors());
 
 // root + health
 app.get("/", (_req, res) => 
