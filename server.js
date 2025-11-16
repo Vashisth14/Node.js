@@ -12,7 +12,6 @@ dotenv.config();
 const app = express();
 
 const PORT = process.env.PORT || 8080;
-const ORIGIN = process.env.ALLOW_ORIGIN || "http://127.0.0.1:5500";
 
 // MIDDLEWARE
 // Logger middleware – logs every request (method, URL, status, response time)
@@ -22,7 +21,7 @@ app.use(morgan("dev"));
 app.use(express.json());
 
 // CORS – allows the frontend (index.html) to talk to the backend
-app.use(cors({ origin: ORIGIN, methods: ["GET","POST","PUT","OPTIONS"] }));
+app.use(cors());
 
 // root + health
 app.get("/", (_req, res) => 
