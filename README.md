@@ -1,20 +1,44 @@
+# After-School Lessons – Backend API (CST3144)
 
----
+This repository (`Node.js`) contains the **Node.js + Express + MongoDB backend** for the **After-School Lessons** full-stack coursework project for **CST3144 – Full Stack Development**.
 
-## 🟣 BACKEND – `README.md`
+The backend exposes a REST API to:
 
-```markdown
-# Lesson Booking – Backend (Node.js / Express / MongoDB)
+- List lessons
+- Search lessons (for search-as-you-type)
+- Create orders
+- Update lesson spaces
+- View / delete orders (for testing)
+- Serve lesson images
+- Log all incoming requests
 
-This is the **Express API** for the CST3144 coursework.  
-It provides all backend functionality for lesson management and orders.
+The **frontend (Vue.js)** is in a separate repo and is hosted on GitHub Pages:
+- Frontend: [`vue.js` repo, GitHub Pages](https://vashisth14.github.io/vue.js/)
 
----
+The backend is hosted on **Render**:
+- Backend: [`node-js-d2bi` on Render](https://node-js-d2bi.onrender.com)
 
-## 🌐 Live API
-https://<your-render-app>.onrender.com
+## 1. Project Overview
 
-## 📘 API Reference
+### 1.1 Technologies Used
+
+- **Runtime**: Node.js
+- **Framework**: Express.js
+- **Database**: MongoDB Atlas (cloud)
+- **ORM/Driver**: Official MongoDB Node.js Driver
+- **Hosting**: Render (Web Service)
+- **Logging**: Morgan
+- **CORS**: `cors` package
+- **Env Management**: dotenv
+
+### 1.2 Key Files
+
+- `server.js` – Main Express server, routes, middleware, and REST API.
+- `db.js` – MongoDB connection helper (getDb / getClient, indexes).
+- `seed.js` – Database seeding script (inserts 10 lessons, clears orders).
+- `package.json` – Dependencies and scripts.
+
+## API Reference
 
 | Method | Route | Description |
 |--------|--------|-------------|
@@ -26,11 +50,8 @@ https://<your-render-app>.onrender.com
 | GET | /images/:name | Serve static image |
 | POST | /orders | Create new order (transactional) |
 | GET | /orders/debug | List latest 5 orders |
-| DELETE | /orders/debug *(optional)* | Delete all orders (admin only) |
 
----
-
-## 🧩 Features
+## Features
 - `GET /lessons` – fetch all lessons with search, sort, and filter
 - `POST /orders` – create new order, transactional update of lesson spaces
 - `PUT /lessons/:id` – generic lesson update (any field: subject, location, price, spaces)
@@ -44,18 +65,7 @@ https://<your-render-app>.onrender.com
   - **express.static()** (static content)
 - Includes MongoDB indexes and connection pooling.
 
----
-
-## 🛠️ Technologies
-- Node.js 20+
-- Express 5.x
-- MongoDB 6.x (native driver)
-- dotenv, morgan, cors
-- Atlas Database (`cst3144`)
-
----
-
-## 🧱 Database Collections
+## Database Collections
 
 ### lessons
 ```json
@@ -84,18 +94,9 @@ Install dependencies
 
 npm install
 
-Create .env
-
-PORT=8080
-MONGODB_URI=mongodb+srv://<user>:<pass>@cluster.mongodb.net
-MONGODB_DB=cst3144
-ALLOW_ORIGIN=http://127.0.0.1:5500
-
-
 Seed sample lessons
 
 npm run seed
-
 
 Start the server
 
