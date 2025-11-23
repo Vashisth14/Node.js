@@ -12,6 +12,14 @@ The backend exposes a REST API to:
 - Serve lesson images
 - Log all incoming requests
 
+# GitHub Repositories
+
+Frontend Repository  
+https://github.com/Vashisth14/vue.js.git
+
+Backend Repository  
+https://github.com/Vashisth14/Node.js.git
+
 The **frontend (Vue.js)** is in a separate repo and is hosted on GitHub Pages:
 - Frontend: [`vue.js` repo, GitHub Pages](https://vashisth14.github.io/vue.js/)
 
